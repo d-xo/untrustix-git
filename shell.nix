@@ -5,7 +5,7 @@ let
 in
 pkgs.mkShell {
   name = "untrustix-git";
-  buildInputs = with pkgs; [ git libuuid (python3.withPackages (ps: with ps; [ pygit2 ])) nix ];
+  buildInputs = with pkgs; [ git libuuid (python3.withPackages (ps: with ps; [ pygit2 ])) mypy nix ];
   NIX_PATH = "nixpkgs=${pkgs.path}";
 }
 
