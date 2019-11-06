@@ -120,19 +120,47 @@ def validate_path(repo: git.Repository, path: List[Tuple[str, git.Oid]], root: g
 def cache_audit_paths(repo: git.Repository, log: git.Oid) -> git.Oid:
     """build a tree containing sparse checkout filter specs for each leaf and it's audit path"""
     leaves = get_leaves(repo, log)
+    tree = repo.TreeBuilder()
     for i in range(len(leaves)):
-        chain = path(repo, i, leaves)
-        assert validate_path(repo, [('l' if i % 2 == 0 else 'r', leaves[i])] + chain, log)
+        proof = [('l' if i%2==0 else 'r', leaves[i])] + path(repo, i, leaves)
+        assert validate_path(repo, proof, log)
+        tree.insert(
+            f"{repo.get(proof[0][1])[0].name}.proof",
+            repo.create_blob(', '.join(f"({proof[0]}, {proof[1]})")),
+            git.GIT_FILEMODE_BLOB
+        )
+    return tree.write()
 
 # --- testing ---
 
 if __name__ == "__main__":
     d = tempfile.mkdtemp()
-    print(d)
     repo = git.init_repository(d, bare=True)
 
+    # generate fake build results
     builds = [store_leaf(repo, store_hash(), nar_hash()) for _ in range(1,8)]
+
+    # build merkle tree
     log = merkleise(repo, builds)
     assert builds == get_leaves(repo, log)
 
-    cache_audit_paths(repo, log)
+    # generate merkle proofs for all results & write them as sparse checkout specs
+    proofs = cache_audit_paths(repo, log)
+
+    # place the log and the proofs into a
+    tree = repo.TreeBuilder()
+    tree.insert('log', log, git.GIT_FILEMODE_TREE)
+    tree.insert('result', proofs, git.GIT_FILEMODE_TREE)
+    root = tree.write()
+
+    author = git.Signature('Alice Author', 'alice@authors.tld')
+    committer = git.Signature('Cecil Committer', 'cecil@committers.tld')
+
+    commit = repo.create_commit(
+        'refs/heads/master',
+        author, committer, 'one line commit message\n\ndetailed commit message',
+        root,
+        []
+    )
+
+    print(f"{commit} in {d}")
