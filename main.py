@@ -1,6 +1,5 @@
 #! /usr/bin/env python3
 
-from pathlib import Path
 from hashlib import sha256
 from subprocess import run
 from uuid import uuid1 as uuid
