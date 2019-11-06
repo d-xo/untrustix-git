@@ -1,5 +1,9 @@
 # repo layout
 
+Builds are written to a tree in the index
+clients only pull diffs for recent commits
+clients can prune history using partial clone
+
 ```
 /log -> append only merkleised log of build results
 /results -> flat directory of filter specs for merkle brances for each output
