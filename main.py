@@ -30,13 +30,7 @@ def store_hash() -> str:
 def nar_hash() -> str:
     return sha256(f"{counter}".encode('utf-8')).hexdigest()
 
-# --- merkleised log ---
-
-def store_leaf(repo: git.Repository, name: str, content: str) -> git.Oid:
-    """leaves are tree objects containing a single file"""
-    tree = repo.TreeBuilder()
-    tree.insert(name, repo.create_blob(content), git.GIT_FILEMODE_BLOB)
-    return tree.write()
+# --- tree utils ---
 
 def pivot(n: int) -> int:
     """find the highest power of 2 less than n"""
@@ -52,8 +46,29 @@ def join_trees(repo: git.Repository, left: git.Oid, right: git.Oid) -> git.Oid:
     tree = repo.TreeBuilder()
     tree.insert('l', left, git.GIT_FILEMODE_TREE)
     tree.insert('r', right, git.GIT_FILEMODE_TREE)
-    tree.insert('.keep', repo.create_blob(""), git.GIT_FILEMODE_BLOB)
     return tree.write()
+
+def get_leaves(repo: git.Repository, tree: git.Oid, leaves: List[git.Oid] = None) -> List[git.Oid]:
+    """get all the leaves from a tree in order"""
+    if leaves is None:
+        leaves = []
+
+    for entry in repo.get(tree):
+        if entry.type == 'tree' and len(repo.get(entry.id)) == 1:
+            leaves.append(entry.id)
+        if entry.type == 'tree':
+            leaves = get_leaves(repo, entry.id, leaves)
+
+    return leaves
+
+# --- build tree ---
+
+def store_leaf(repo: git.Repository, name: str, content: str) -> git.Oid:
+    """leaves are tree objects containing a single file"""
+    tree = repo.TreeBuilder()
+    tree.insert(name, repo.create_blob(content), git.GIT_FILEMODE_BLOB)
+    return tree.write()
+
 
 def merkleise(repo: git.Repository, leaves: List[git.Oid]) -> git.Oid:
     """build a merkle tree following the spec in RFC6962"""
@@ -68,19 +83,6 @@ def merkleise(repo: git.Repository, leaves: List[git.Oid]) -> git.Oid:
     )
 
 # --- inclusion proofs ---
-
-def get_leaves(repo: git.Repository, tree: git.Oid, leaves: List[git.Oid] = None) -> List[git.Oid]:
-    """get all the leaves from a tree in order"""
-    if leaves is None:
-        leaves = []
-
-    for entry in repo.get(tree):
-        if entry.type == 'tree' and len(repo.get(entry.id)) == 1:
-            leaves.append(entry.id)
-        if entry.type == 'tree':
-            leaves = get_leaves(repo, entry.id, leaves)
-
-    return leaves
 
 
 def path(repo: git.Repository, m: int, leaves: List[git.Oid]) -> List[Tuple[str, git.Oid]]:
@@ -97,6 +99,7 @@ def path(repo: git.Repository, m: int, leaves: List[git.Oid]) -> List[Tuple[str,
 
 
 def validate_path(repo: git.Repository, path: List[Tuple[str, git.Oid]], root: git.Oid) -> bool:
+    """validate that the provided merkle path hashes to the root hash"""
     assert path[0][0] in ['l', 'r', '']
 
     if len(path) is 1:
