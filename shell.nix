@@ -1,6 +1,9 @@
 let
   pkgs = import (
-    fetchTarball { url = https://github.com/NixOS/nixpkgs-channels/archive/nixos-19.09.tar.gz; }
+    fetchGit {
+      url = https://github.com/NixOS/nixpkgs-channels;
+      ref = "nixos-19.09";
+    }
   ) {};
 in
 pkgs.mkShell {
