@@ -91,10 +91,51 @@ def shards(path: str, depth: int = 5) -> List[str]:
     return shards
 
 
-def add_blob(tree: git.Oid, path: str, content: str) -> git.Oid:
-    """adds a blob with `content` at `path` to `tree`"""
-    return tree
+def update_tree(
+    repo: git.Repository,
+    tree: git.Oid,
+    path: List[str],
+    content: str,
+) -> git.Oid:
+    """
+    adds a blob with `content` at `path` to `tree` in `repo`
 
+    >>> repo = create_repo()
+    >>> tree = repo.TreeBuilder().write()
+    >>> for i in range(10):
+    ...    path = store_hash(f"{i}")
+    ...    content = nar_hash(path)
+    ...    tree = update_tree(repo, tree, shards(path), content)
+    >>> print(tree)
+    00f68bdb866b654d4ce3da90609b74137605bd90
+    """
+    # subdir exists: recurse
+    for entry in repo.get(tree):
+        if entry.name is path[0] and entry.type is "tree":
+            sub = update_tree(repo, entry.id, path[1:], content)
+            builder = repo.TreeBuilder(repo.get(tree))
+            builder.remove(path[0])
+            builder.insert(path[0], sub, git.GIT_FILEMODE_TREE)
+            return builder.write()
+
+    # subdir does not exist: create required objects
+    if len(path[0]) is 2:
+        sub = update_tree(repo, tree, [path[-1]], content)
+        for d in reversed(path[1:-1]):
+            builder = repo.TreeBuilder()
+            builder.insert(d, sub, git.GIT_FILEMODE_TREE)
+            sub = builder.write()
+
+        builder = repo.TreeBuilder(repo.get(tree))
+        builder.insert(path[0], sub, git.GIT_FILEMODE_TREE)
+        return builder.write()
+
+    # path[0] is not a subdir: write blob
+    else:
+        blob = repo.write(git.GIT_OBJ_BLOB, content)
+        builder = repo.TreeBuilder()
+        builder.insert(path[0], blob, git.GIT_FILEMODE_BLOB)
+        return builder.write()
 
 # --- test ---
 
