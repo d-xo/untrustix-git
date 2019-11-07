@@ -6,6 +6,7 @@ from hashlib import sha256
 from pathlib import Path
 from subprocess import run
 from tempfile import NamedTemporaryFile, mkdtemp
+from time import time
 from typing import Optional, List
 from uuid import uuid4 as uuid
 
@@ -106,9 +107,9 @@ def update_tree(
     >>> print(tree)
     00f68bdb866b654d4ce3da90609b74137605bd90
     """
-    # subdir exists: recurse
     for entry in repo.get(tree):
-        if entry.name is path[0] and entry.type is "tree":
+        # subdir exists: recurse
+        if (entry.name == path[0]) and (entry.type == "tree"):
             sub = update_tree(repo, entry.id, path[1:], content)
             builder = repo.TreeBuilder(repo.get(tree))
             builder.remove(path[0])
