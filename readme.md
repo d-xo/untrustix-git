@@ -11,19 +11,14 @@ hosted repos (I have tested with the `ssh` and `git` protocols).
 
 ## Repo Layout
 
-Build results are stored in a `results` subfolder. Results are stored in a hash tree, keyed by their
-store hash, and sharded into subdirectories (e.g. the expected contents of the store path identified
-by `zzlfqv4p4hf55saim00zc9vvqj08nxjb` would be written to a file at `zz/lf/qv/4p/4h/f55saim00zc9vvqj08nxjb`).
-The sharding allows for the construction of compact proofs of:
+Results are stored in a hash tree in the repo root, keyed by their store hash, and sharded into
+subdirectories (e.g. the expected contents of the store path identified by
+`zzlfqv4p4hf55saim00zc9vvqj08nxjb` would be written to a file at
+`zz/lf/qv/4p/4h/f55saim00zc9vvqj08nxjb`).  The sharding allows for the construction of compact
+proofs of:
 
 - `inclusion`: a given build result is included in a given hash tree
 - `consistency`: a given hash tree is append only relative to an older version
-
-The other top level folder is `filters`. Each file in this directory is a git filter spec that
-allows clients to perform a partial fetch containing only a single build result and it's associated
-inclusion proof. This is required as the current git partial fetch protocol will by default return
-all objects referred to by a requested object (i.e. fetching an tree object fetches all subtrees and
-blobs contained within).
 
 More thought is required to select an optimum tree depth. There is probably a trade off between
 the sizes of the inclusion and consistency proofs here.
@@ -63,7 +58,6 @@ Builders need to store the latest commit and associated tree objects only. They 
 and all blobs. For each new build result, builders:
 
 1. Insert the build result
-1. Add the filter spec for the build result
 1. Construct the consistency proof
 1. Commit the new state and write the consistency proof as the commit message
 
@@ -82,8 +76,7 @@ commits.
 
 ### Lookup
 
-Clients make a single fetch request to the log using the filter spec for the store path they are
-interested in to fetch only the build results and associated inclusion proof. They then verify the
-inclusion proof. Once a result is verified, it's inclusion proof can be discarded. Clients can also
-discard previously fetched build results that they are no longer interested in.
+Starting from the root, clients move down the tree to the desired leaf, fetching intermediate tree
+objects as needed (using `git cat-file <object_hash>`). Once they have fetched the full branch, they
+combine all hashes to verify the inclusion proof.
 
