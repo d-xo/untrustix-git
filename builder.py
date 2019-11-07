@@ -92,10 +92,7 @@ def shards(path: str, depth: int = 5) -> List[str]:
 
 
 def update_tree(
-    repo: git.Repository,
-    tree: git.Oid,
-    path: List[str],
-    content: str,
+    repo: git.Repository, tree: git.Oid, path: List[str], content: str
 ) -> git.Oid:
     """
     adds a blob with `content` at `path` to `tree` in `repo`
@@ -136,6 +133,7 @@ def update_tree(
         builder = repo.TreeBuilder()
         builder.insert(path[0], blob, git.GIT_FILEMODE_BLOB)
         return builder.write()
+
 
 # --- test ---
 
