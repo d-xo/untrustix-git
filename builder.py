@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 
 from base64 import b32encode
+from doctest import testmod
 from hashlib import sha256
 from pathlib import Path
 from subprocess import run
@@ -14,7 +15,12 @@ import pygit2 as git  # type: ignore
 
 
 def store_hash(seed: Optional[str] = None) -> str:
-    """hash `seed` using the nix store hash format. `seed` is random if not provided"""
+    """
+    hash `seed` using the nix store hash format. `seed` is random if not provided
+
+    >>> store_hash("1")
+    'xajasisp7xdgy1fvxhm3rbia7wxazaf9'
+    """
     if seed is None:
         seed = uuid().hex
 
@@ -40,7 +46,12 @@ def store_hash(seed: Optional[str] = None) -> str:
 
 
 def nar_hash(seed: Optional[str] = None) -> str:
-    """hash `seed` using the using sha256. `seed` is random if not provided"""
+    """
+    hash `seed` using using sha256. `seed` is random if not provided
+
+    >>> nar_hash("1")
+    '6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b'
+    """
     if seed is None:
         seed = uuid().hex
 
@@ -64,6 +75,15 @@ def create_repo() -> git.Repository:
 
 
 def shards(path: str, depth: int = 5) -> List[str]:
+    """
+    returns the list of directories that a given store path will be written to
+
+    >>> shards("xajasisp7xdgy1fvxhm3rbia7wxazaf9")
+    ['xa', 'ja', 'si', 'sp', '7x', 'dgy1fvxhm3rbia7wxazaf9']
+
+    >>> shards("xajasisp7xdgy1fvxhm3rbia7wxazaf9", depth=3)
+    ['xa', 'ja', 'si', 'sp7xdgy1fvxhm3rbia7wxazaf9']
+    """
     shards = []
     for i in range(0, depth):
         shards.append(path[2 * i : 2 * i + 2])
@@ -79,7 +99,4 @@ def add_blob(tree: git.Oid, path: str, content: str) -> git.Oid:
 # --- test ---
 
 if __name__ == "__main__":
-    repo = create_repo()
-
-    path = store_hash(f"{1}")
-    print(path, shards(path))
+    testmod()
