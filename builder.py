@@ -105,7 +105,7 @@ def update_tree(
     >>> for i in range(10):
     ...    path = store_hash(f"{i}")
     ...    content = nar_hash(path)
-    ...    tree = update_tree(repo, tree, shards(path), content)
+    ...    tree = update_tree(repo, tree, shards(path, depth=5), content)
     >>> print(tree)
     00f68bdb866b654d4ce3da90609b74137605bd90
     """
