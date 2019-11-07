@@ -59,10 +59,12 @@ def nar_hash(seed: Optional[str] = None) -> str:
     return sha256(f"{seed}".encode("utf-8")).hexdigest()
 
 
-def create_repo() -> git.Repository:
+def create_repo(directory: Optional[str] = None) -> git.Repository:
     """create a git repo in a new temporary directory. configure it to allow for partial clones"""
-    d = mkdtemp()
-    repo = git.init_repository(d, bare=True)
+    if directory is None:
+        directory = mkdtemp()
+
+    repo = git.init_repository(directory, bare=True)
 
     # add partial clone support
     conf = repo.config
