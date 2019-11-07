@@ -5,7 +5,7 @@ from hashlib import sha256
 from pathlib import Path
 from subprocess import run
 from tempfile import NamedTemporaryFile, mkdtemp
-from typing import Optional
+from typing import Optional, List
 from uuid import uuid4 as uuid
 
 import pygit2 as git  # type: ignore
@@ -63,8 +63,17 @@ def create_repo() -> git.Repository:
 # --- repo utils ---
 
 
-def write_build(store_hash: str, content_hash: str) -> None:
-    pass
+def shards(path: str, depth: int = 5) -> List[str]:
+    shards = []
+    for i in range(0, depth):
+        shards.append(path[2 * i : 2 * i + 2])
+    shards.append(path[2 * depth :])
+    return shards
+
+
+def add_blob(tree: git.Oid, path: str, content: str) -> git.Oid:
+    """adds a blob with `content` at `path` to `tree`"""
+    return tree
 
 
 # --- test ---
@@ -72,7 +81,5 @@ def write_build(store_hash: str, content_hash: str) -> None:
 if __name__ == "__main__":
     repo = create_repo()
 
-    for i in range(0, 10):
-        store = store_hash(f"{i}")
-        nar = nar_hash(store)
-        print(f"store: {store} // nar: {nar}")
+    path = store_hash(f"{1}")
+    print(path, shards(path))
