@@ -119,26 +119,77 @@ def update_tree(
             return builder.write()
 
     # subdir does not exist: create required objects
-    if len(path[0]) is 2:
-        sub = update_tree(repo, tree, [path[-1]], content)
+    if len(path) > 1:
+        # write leaf node
+        sub = update_tree(repo, repo.TreeBuilder().write(), [path[-1]], content)
+        # build intermediate nodes
         for d in reversed(path[1:-1]):
             builder = repo.TreeBuilder()
             builder.insert(d, sub, git.GIT_FILEMODE_TREE)
             sub = builder.write()
 
+        # attach to `tree`
         builder = repo.TreeBuilder(repo.get(tree))
         builder.insert(path[0], sub, git.GIT_FILEMODE_TREE)
         return builder.write()
 
     # path[0] is not a subdir: write blob
-    else:
+    elif len(path) == 1:
         blob = repo.write(git.GIT_OBJ_BLOB, content)
-        builder = repo.TreeBuilder()
+        builder = repo.TreeBuilder(repo.get(tree))
         builder.insert(path[0], blob, git.GIT_FILEMODE_BLOB)
         return builder.write()
+
+    else:
+        raise Exception(f"invalid path: {path}")
+
+
+def write_build(
+    repo: git.Repository,
+    head: git.Oid,
+    path: str,
+    content: str,
+    when: Optional[int] = None,
+) -> git.Oid:
+    if when is None:
+        when = int(time())
+
+    tree = update_tree(repo, repo.get(head).tree.id, shards(path), content)
+
+    return repo.create_commit(
+        "refs/heads/master",
+        git.Signature(name="untrustix", email="untrust@ix.com", time=when),
+        git.Signature(name="untrustix", email="untrust@ix.com", time=when),
+        f"{path} {content}",
+        tree,
+        [head],
+    )
 
 
 # --- test ---
 
 if __name__ == "__main__":
-    testmod()
+
+    # ------------------------------------------
+
+    testmod()  # run tests
+
+    # ------------------------------------------
+
+    repo = create_repo()
+    commit = repo.create_commit(
+        "refs/heads/master",
+        git.Signature(name="untrustix", email="untrust@ix.com", time=0),
+        git.Signature(name="untrustix", email="untrust@ix.com", time=0),
+        "init",
+        repo.TreeBuilder().write(),
+        [],
+    )
+
+    for i in range(1, 11):
+        path = store_hash(f"{i}")
+        content = nar_hash(path)
+        print(i, path, content)
+        commit = write_build(repo, commit, path, content, when=i)
+
+    print(repo, commit)
