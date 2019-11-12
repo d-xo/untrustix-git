@@ -23,6 +23,8 @@ allows for the construction of compact proofs of:
 More thought is required to select an optimum tree depth. There is probably a trade off between
 the sizes of the inclusion and consistency proofs here.
 
+An example repo can be found here: https://github.com/xwvvvvwx/untrustix-git-testdata.
+
 ## Proofs
 
 ### Inclusion
