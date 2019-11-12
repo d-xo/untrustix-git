@@ -1,82 +1,80 @@
 # untrustix-git
 
-This is a design for a git backed append only log of nix build results. It makes use of the
-(relatively) new [partial clone](https://git-scm.com/docs/partial-clone) features in git to allow
-for very lightweight log followers.
+This is a design / proof of concept for a git backed append only log of nix build results. It makes
+use of the new [partial clone](https://git-scm.com/docs/partial-clone) features in git to allow for
+relatively lightweight log followers.
 
 As far as I can tell there are no major git hosting services that currently support partial clones
 in git, although gitlab are currently working to enable support
 ([ref](https://docs.gitlab.com/ee/topics/git/partial_clone.html)). It does however work with self
 hosted repos (I have tested with the `ssh` and `git` protocols).
 
-## Repo Layout
+If a git client requests an object, the git transfer protocol currently specifies that the server
+returns the requested objects, and *all dependendent objects*. This means that it is not possible
+for a git client to request a single build result and it's associated inclusion proof (a.k.a merkle
+branch).
 
-Results are stored in a hash tree in the repo root, keyed by their store hash, and sharded into
-subdirectories (e.g. the expected contents of the store path identified by
-`zzlfqv4p4hf55saim00zc9vvqj08nxjb` would be written to a file at
-`zz/lf/qv/4p/4h/f55saim00zc9vvqj08nxjb`).  The sharding allows for the construction of compact
-proofs of:
+This unfortunately mean that log followers must retain more state than is ideal, meaning that git is
+probably not a good choice for logs that are expected to grow very large (e.g. a log containing ~3.3
+million builds requires clients to maintain 169 MiB of state locally).
 
-- `inclusion`: a given build result is included in a given hash tree
-- `consistency`: a given hash tree is append only relative to an older version
+If the transfer protocol was improved to allow more granularity in the transferred objects, it should
+be possible to construct log followers that require only a few hundred kilobytes of state.
 
-More thought is required to select an optimum tree depth. There is probably a trade off between
-the sizes of the inclusion and consistency proofs here.
+What follows is a description of the most efficient protocol I was able to devise given the
+limitations of the current transfer protocol.
 
-## Proofs
+## Protocol Overview
 
-### Inclusion
+The repo is a mapping from store paths to build results, backed by a verifiable log of state
+transitions.
 
-The inclusion proof is the familiar merkle branch proof. Given a leaf node and the branch from the
-root to the leaf, the verifier can combine the leaf with the provided intermediate hashes and
-confirm that they produce the expected root hash. This assumes that the client has obtained
-knowledge of the root hash through some trusted side channel.
+Build results for each store path are stored in a file with the name of that store hash. Build
+results are sharded into subdirectories based on the first characters of their store hash, this
+keeps directory sizes (and tree objects) reasonable. To make matters more concrete the expected
+contents of the store path identified by `zzlfqv4p4hf55saim00zc9vvqj08nxjb` would be written to a
+file at `zz/lf/qv4p4hf55saim00zc9vvqj08nxjb`).
 
-### Consistency
-
-This proof assumes that only a single new leaf has been added to the tree. The verifier knows the
-root hash of the old tree and the new tree. The prover provides:
-
-1. A full branch in the old tree to the leaf where the new content will be inserted.
-1. The hash of the new content and it's path in the tree
-
-The verifier does the following:
-
-1. Verifies that the branch in the old tree is valid
-1. Recomputes the branch with the new content added, reusing any unchanged intermediate hashes from the old branch, and verifies that it produces the new root hash
-
-This works because the branch in the old tree is a commitment to the state of the entire tree. If we
-reuse the unchanged hashes from the old branch while computing the new root hash, then we can be
-sure that the only change to the tree was the addition of the new content.
-
-If each new build result is added as a new commit, then the consistency proof can be written to the
-commit message.
-
-## Builders
-
-Builders need to store the latest commit and associated tree objects only. They can drop old commits
-and all blobs. For each new build result, builders:
-
-1. Insert the build result
-1. Construct the consistency proof
-1. Commit the new state and write the consistency proof as the commit message
+Each time a new build is added to the log, a new commit object is created. The commit message is as
+follows `<STORE_HASH> <BUILD_RESULT>`. This means that the commit object contains all information
+needed for the client to construct the new root hash using only state that it retains locally, so
+clients need to fetch the commit objects only.
 
 ## Clients
 
-Log followers are lightweight and need store only the most recent commit object (trees / blobs are
-not required) for logs they are interested in. The number of operations required to lookup a build
-is constant as the number of build results increases.
-
 ### Synchronisation
 
-Clients start from a known good commit, and pull newer commits in order from the oldest to the
-newest. As they receive new commits, they verify the consistency proofs. Once a newer commit has
-been verified, all older commits can be discarded. This operation is linear with the number of
-commits.
+Clients start from a known good commit (the first if they are paranoid). They store the tree objects
+(directories), but not the blobs (file contents) for that commit. For each new commit they locally
+add the data specified in the commit message to the directory tree and compute the new root hash. If
+it matches the root hash specified in the commit object, then they can be sure that the commit
+contains only the addition specified in the commit message. They can then throw away the old commit
+and any orphaned tree objects and repeat for the next commit.
 
 ### Lookup
 
-Starting from the root, clients move down the tree to the desired leaf, fetching intermediate tree
-objects as needed (using `git cat-file <object_hash>`). Once they have fetched the full branch, they
-combine all hashes to verify the inclusion proof.
+Clients simply request the blob specified in the newest copy of the directory tree (e.g. `git cat-file -p
+<BLOB_HASH>`). This fetches the blob from the remote.
+
+## Builders
+
+Builders need store the same state as the client. They can keep only the most recent commit and the
+directory tree. When they wish to add a new build they:
+
+1. Insert the build result and calculate the new root hash
+1. Commit the new state and write the addition to the commit message
+1. Push their changes
+
+## Testing
+
+A small script `builder.py` is included in this repo that can be used to generate fake build results
+and commit them to a log. I ran it for a few days and generated a test repository with ~3.3 million
+builds. This repo is 7.6GiB on disk, and a client would need to store 169MiB of state locally.
+
+This repo is available here: https://github.com/xwvvvvwx/untrustix-git-testdata.
+
+You can emulate a client by fetching using `git clone --filter=blob:none --depth=1 --no-checkout
+--no-hardlinks file://<PATH_TO_REPO> pruned`. This will perform a shallow clone and fetch only the
+tree data for the latest commit, it will not checkout any data into the worktree. Note that this
+must be done on a local copy of the repo, as github currently does not support partial clones.
 
