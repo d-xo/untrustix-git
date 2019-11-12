@@ -1,8 +1,8 @@
 # untrustix-git
 
-This is a design for a git backed append only log of nix build results. It makes use of the
-new [partial clone](https://git-scm.com/docs/partial-clone) features in git to allow
-for very lightweight log followers.
+This is a design for a git backed append only log of nix build results for use within some binary
+transparency scheme. It makes use of the new [partial clone](https://git-scm.com/docs/partial-clone)
+features in git to allow for very lightweight log followers.
 
 As far as I can tell there are no major git hosting services that currently support partial clones
 in git, although gitlab are currently working to enable support
@@ -37,8 +37,8 @@ knowledge of the root hash through some trusted side channel.
 This proof assumes that only a single new leaf has been added to the tree. The verifier knows the
 root hash of the old tree and the new tree. The prover provides:
 
-1. A full branch in the old tree to the leaf where the new content will be inserted.
-1. The hash of the new content and it's path in the tree
+1. A full branch in the old tree to the leaf where the new content will be inserted
+1. The new content and it's path in the tree
 
 The verifier does the following:
 
@@ -51,7 +51,7 @@ reuse the unchanged hashes from the old branch while computing the new root hash
 sure that the only change to the tree was the addition of the new content.
 
 If each new build result is added as a new commit, then the consistency proof can be written to the
-commit message.
+commit message, meaning log followers need only retain a single commit object locally.
 
 ## Builders
 
@@ -66,14 +66,15 @@ and all blobs. For each new build result, builders:
 
 Log followers are lightweight and need store only the most recent commit object (trees / blobs are
 not required) for logs they are interested in. The number of operations required to lookup a build
-is constant as the number of build results increases.
+result, as well as the amount of local state required is constant as the number of build results
+increases.
 
 ### Synchronisation
 
 Clients start from a known good commit, and pull newer commits in order from the oldest to the
 newest. As they receive new commits, they verify the consistency proofs. Once a newer commit has
-been verified, all older commits can be discarded. This operation is linear with the number of
-commits.
+been verified, all older commits can be discarded. This operation scales linearly in time with the
+number of commits.
 
 ### Lookup
 
