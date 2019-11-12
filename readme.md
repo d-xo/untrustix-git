@@ -1,8 +1,9 @@
 # untrustix-git
 
-This is a design for a git backed append only log of nix build results for use within some binary
-transparency scheme. It makes use of the new [partial clone](https://git-scm.com/docs/partial-clone)
-features in git to allow for very lightweight log followers.
+This is a design for a git backed, cryptographically verifiable, append only log of nix build
+results for use within some binary transparency scheme. It makes use of the new [partial
+clone](https://git-scm.com/docs/partial-clone) features in git to allow for very lightweight
+log followers (hundreds of kilobytes of local state required).
 
 As far as I can tell there are no major git hosting services that currently support partial clones
 in git, although gitlab are currently working to enable support
@@ -90,13 +91,14 @@ A small script `builder.py` is included in this repo that can be used to generat
 and commit them to a log.  It currently does not write the full consistency proof to the commit
 message, only the store hash and content that was added.
 
-I ran it for a few days and generated a test repository with ~3.3 million
-builds. This repo is 7.6GiB on disk, and is available here: https://github.com/xwvvvvwx/untrustix-git-testdata.
+I ran it for a few days and generated a test repository with ~3.3 million builds. This repo is
+7.6GiB on disk, and is available here: https://github.com/xwvvvvwx/untrustix-git-testdata.
 
 You can emulate a client by fetching using `git clone --filter=tree:0 --depth=1 --no-checkout
---no-hardlinks file://<PATH_TO_REPO> pruned`. This will perform a shallow clone and fetch only the
-the latest commit, it will not checkout any data into the worktree. Note that this must be done on a
-local copy of the repo, as github currently does not support partial clones.
+--no-hardlinks file://<PATH_TO_REPO> client`. This will fetch only the latest commit object. It will
+not fetch any tree or blob objects referenced in the commit. It will not checkout any data into the
+worktree. Note that this must be done on a local copy of the repo, as github currently does not
+support partial clones.
 
 You can then query individual build results by recursively calling `git fetch-pack --filter=tree:0
-file://<PATH_TO_REPO> <OBJECT_HASH>` until you reach a leaf.
+file://<PATH_TO_REPO> <OBJECT_HASH>` inside the client repository until you reach a leaf.
