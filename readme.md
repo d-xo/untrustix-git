@@ -80,3 +80,20 @@ commits.
 Starting from the root, clients move down the tree to the desired leaf, fetching intermediate tree
 objects as needed (using `git fetch-pack --filter=tree:0 <REPO> <OBJECT_HASH>`). Once they have
 fetched the full branch, they combine all hashes to verify the inclusion proof.
+
+## Testing
+
+A small script `builder.py` is included in this repo that can be used to generate fake build results
+and commit them to a log.  It currently does not write the full consistency proof to the commit
+message, only the store hash and content that was added.
+
+I ran it for a few days and generated a test repository with ~3.3 million
+builds. This repo is 7.6GiB on disk, and is available here: https://github.com/xwvvvvwx/untrustix-git-testdata.
+
+You can emulate a client by fetching using `git clone --filter=tree:0 --depth=1 --no-checkout
+--no-hardlinks file://<PATH_TO_REPO> pruned`. This will perform a shallow clone and fetch only the
+the latest commit, it will not checkout any data into the worktree. Note that this must be done on a
+local copy of the repo, as github currently does not support partial clones.
+
+You can then query individual build results by recursively calling `git fetch-pack --filter=tree:0
+file://<PATH_TO_REPO> <OBJECT_HASH>` until you reach a leaf.
