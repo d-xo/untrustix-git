@@ -1,7 +1,7 @@
 # untrustix-git
 
 This is a design for a git backed append only log of nix build results. It makes use of the
-(relatively) new [partial clone](https://git-scm.com/docs/partial-clone) features in git to allow
+new [partial clone](https://git-scm.com/docs/partial-clone) features in git to allow
 for very lightweight log followers.
 
 As far as I can tell there are no major git hosting services that currently support partial clones
@@ -14,8 +14,8 @@ hosted repos (I have tested with the `ssh` and `git` protocols).
 Results are stored in a hash tree in the repo root, keyed by their store hash, and sharded into
 subdirectories (e.g. the expected contents of the store path identified by
 `zzlfqv4p4hf55saim00zc9vvqj08nxjb` would be written to a file at
-`zz/lf/qv/4p/4h/f55saim00zc9vvqj08nxjb`).  The sharding allows for the construction of compact
-proofs of:
+`zz/lf/qv4p4hf55saim00zc9vvqj08nxjb`). The sharding keeps directory (and tree object) sizes sane and
+allows for the construction of compact proofs of:
 
 - `inclusion`: a given build result is included in a given hash tree
 - `consistency`: a given hash tree is append only relative to an older version
@@ -43,7 +43,8 @@ root hash of the old tree and the new tree. The prover provides:
 The verifier does the following:
 
 1. Verifies that the branch in the old tree is valid
-1. Recomputes the branch with the new content added, reusing any unchanged intermediate hashes from the old branch, and verifies that it produces the new root hash
+1. Recomputes the branch with the new content added, reusing any unchanged intermediate hashes from
+   the old branch, and verifies that it produces the new root hash
 
 This works because the branch in the old tree is a commitment to the state of the entire tree. If we
 reuse the unchanged hashes from the old branch while computing the new root hash, then we can be
@@ -77,6 +78,5 @@ commits.
 ### Lookup
 
 Starting from the root, clients move down the tree to the desired leaf, fetching intermediate tree
-objects as needed (using `git cat-file <object_hash>`). Once they have fetched the full branch, they
-combine all hashes to verify the inclusion proof.
-
+objects as needed (using `git fetch-pack --filter=tree:0 <REPO> <OBJECT_HASH>`). Once they have
+fetched the full branch, they combine all hashes to verify the inclusion proof.
