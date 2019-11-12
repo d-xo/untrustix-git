@@ -1,12 +1,13 @@
 #! /usr/bin/env python3
 
+from argparse import ArgumentParser
 from base64 import b32encode
 from doctest import testmod
 from hashlib import sha256
 from pathlib import Path
 from subprocess import run
 from tempfile import NamedTemporaryFile, mkdtemp
-from time import time
+from time import time, ctime
 from typing import Optional, List
 from uuid import uuid4 as uuid
 
@@ -59,11 +60,9 @@ def nar_hash(seed: Optional[str] = None) -> str:
     return sha256(f"{seed}".encode("utf-8")).hexdigest()
 
 
-def create_repo(directory: Optional[str] = None) -> git.Repository:
+def create_repo() -> git.Repository:
     """create a git repo in a new temporary directory. configure it to allow for partial clones"""
-    if directory is None:
-        directory = mkdtemp()
-
+    directory = mkdtemp()
     repo = git.init_repository(directory, bare=True)
 
     # add partial clone support
@@ -77,11 +76,11 @@ def create_repo(directory: Optional[str] = None) -> git.Repository:
 # --- repo utils ---
 
 
-def shards(path: str, depth: int = 5) -> List[str]:
+def shards(path: str, depth: int) -> List[str]:
     """
     returns the list of directories that a given store path will be written to
 
-    >>> shards("xajasisp7xdgy1fvxhm3rbia7wxazaf9")
+    >>> shards("xajasisp7xdgy1fvxhm3rbia7wxazaf9", depth=5)
     ['xa', 'ja', 'si', 'sp', '7x', 'dgy1fvxhm3rbia7wxazaf9']
 
     >>> shards("xajasisp7xdgy1fvxhm3rbia7wxazaf9", depth=3)
@@ -144,25 +143,25 @@ def update_tree(
         raise Exception(f"invalid path: {path}")
 
 
-def write_build(
+def advance_master(
     repo: git.Repository,
-    head: git.Oid,
-    path: str,
-    content: str,
+    parents: List[git.Oid],
+    tree: git.Oid,
     when: Optional[int] = None,
+    msg: Optional[str] = None,
 ) -> git.Oid:
     if when is None:
         when = int(time())
-
-    tree = update_tree(repo, repo.get(head).tree.id, shards(path), content)
+    if msg is None:
+        msg = ""
 
     return repo.create_commit(
         "refs/heads/master",
         git.Signature(name="untrustix", email="untrust@ix.com", time=when),
         git.Signature(name="untrustix", email="untrust@ix.com", time=when),
-        f"{path} {content}",
+        msg,
         tree,
-        [head],
+        parents,
     )
 
 
@@ -176,20 +175,36 @@ if __name__ == "__main__":
 
     # ------------------------------------------
 
-    repo = create_repo()
-    commit = repo.create_commit(
-        "refs/heads/master",
-        git.Signature(name="untrustix", email="untrust@ix.com", time=0),
-        git.Signature(name="untrustix", email="untrust@ix.com", time=0),
-        "init",
-        repo.TreeBuilder().write(),
-        [],
+    parser = ArgumentParser("untrustix-git builder")
+    parser.add_argument(
+        "--repo_path", help="The on disk location of the git repository", type=str
     )
+    parser.add_argument(
+        "--sharding_depth", help="The sharding depth to be used", type=int, default=2
+    )
+    args = parser.parse_args()
 
-    for i in range(1, 11):
-        path = store_hash(f"{i}")
+    repo: Optional[git.Repository] = None
+    commit: Optional[git.Oid] = None
+    if args.repo_path:
+        repo = git.Repository(args.repo_path)
+        commit = repo.head.resolve().target
+    else:
+        repo = create_repo()
+        tree = repo.TreeBuilder().write()
+        commit = advance_master(repo=repo, parents=[], tree=tree, when=0, msg="init")
+
+    print(f"writing to repo at {repo.path}")
+
+    while True:
+        when = repo.get(commit).commit_time + 1
+        path = store_hash(f"{when}")
         content = nar_hash(path)
-        print(i, path, content)
-        commit = write_build(repo, commit, path, content, when=i)
-
-    print(repo, commit)
+        tree = update_tree(
+            repo, repo.get(commit).tree.id, shards(path, args.sharding_depth), content
+        )
+        commit = advance_master(
+            repo=repo, parents=[commit], tree=tree, when=when, msg=f"{path} {content}"
+        )
+        if when % 1000 == 0:
+            print(when, ctime())
