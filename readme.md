@@ -27,8 +27,8 @@ More thought is required to select an optimum tree depth.
 
 The repository need never be checked out into a worktree, meaning that it can be stored on disk
 using the highly compressed packfile format. All operations can work on the packfiles directly. This
-means that the disk space requirements for the full log are not as onerous as one would expect (my
-test repo with ~3.3 million builds needs 7.9G on disk).
+means that the disk space requirements for the full log are not as onerous as one would expect (e.g. my
+test repo with ~3.3 million builds needs 7.6G on disk).
 
 An example repo can be found here: https://github.com/xwvvvvwx/untrustix-git-testdata.
 
