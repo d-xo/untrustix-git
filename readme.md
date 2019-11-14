@@ -163,7 +163,7 @@ My 3.3 million build test repo takes up 7.6GB on disk, extrapolating out to a 50
 we can expect the repo to require ~1TB of disk usage.
 
 Operations on the full log are slow and expensive. Running `git gc` on my (relatively small) test
-repo already takes ~20 minutes on a modern quad core i7 laptop. Performing whole repo operations on
+repo already takes ~15 minutes on a modern quad core i7 laptop. Performing whole repo operations on
 very large logs may become tedious or problematic.
 
 Very popular logs (e.g. hydra) will be queried on every build by most (all?) NixOS users. It is
