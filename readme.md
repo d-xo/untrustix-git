@@ -1,14 +1,16 @@
 # untrustix-git
 
-This is a design for a git backed, cryptographically verifiable, append only log of nix build
-results for use within some binary transparency scheme. It makes use of the new [partial
-clone](https://git-scm.com/docs/partial-clone) features in git to allow for very lightweight
-log followers (hundreds of kilobytes of local state required).
+This is a design / proof of concept for a git backed, untrusted, append only log of nix build
+results for use within some build transparency scheme. It makes use of the new [partial
+clone](https://git-scm.com/docs/partial-clone) features in git to allow for very lightweight log
+followers (hundreds of kilobytes of local state required).
 
-As far as I can tell there are no major git hosting services that currently support partial clones
-in git, although gitlab are currently working to enable support
-([ref](https://docs.gitlab.com/ee/topics/git/partial_clone.html)). It does however work with self
-hosted repos (I have tested with the `ssh` and `git` protocols).
+Using git to implement the log is nice because:
+
+- Git is simple, robust, and well understood by the majority of the worlds software developers
+- The log is stored in a well documented and widely understood format, and can be easily inspected
+  using existing tooling (e.g. manual lookups in the github webui are possible)
+- Hosting logs is extremely simple (for small logs it should even be possible to use github)
 
 ## Repo Layout
 
@@ -16,13 +18,17 @@ Results are stored in a hash tree in the repo root, keyed by their store hash, a
 subdirectories (e.g. the expected contents of the store path identified by
 `zzlfqv4p4hf55saim00zc9vvqj08nxjb` would be written to a file at
 `zz/lf/qv4p4hf55saim00zc9vvqj08nxjb`). The sharding keeps directory (and tree object) sizes sane and
-allows for the construction of compact proofs of:
+allows for the construction of compact (hundreds of kilobytes) proofs of:
 
 - `inclusion`: a given build result is included in a given hash tree
 - `consistency`: a given hash tree is append only relative to an older version
 
-More thought is required to select an optimum tree depth. There is probably a trade off between
-the sizes of the inclusion and consistency proofs here.
+More thought is required to select an optimum tree depth.
+
+The repository need never be checked out into a worktree, meaning that it can be stored on disk
+using the highly compressed packfile format. All operations can work on the packfiles directly. This
+means that the disk space requirements for the full log are not as onerous as one would expect (my
+test repo with ~3.3 million builds needs 7.9G on disk).
 
 An example repo can be found here: https://github.com/xwvvvvwx/untrustix-git-testdata.
 
@@ -56,34 +62,42 @@ sure that the only change to the tree was the addition of the new content.
 If each new build result is added as a new commit, then the consistency proof can be written to the
 commit message, meaning log followers need only retain a single commit object locally.
 
-## Builders
+## Clients
 
-Builders need to store the latest commit and associated tree objects only. They can drop old commits
-and all blobs. For each new build result, builders:
+### Builders
+
+Builders realise derivations and write build results to the log.
+
+Builders need to store the latest commit and associated tree objects only, they can drop old commits
+and all blobs. Even for extremely large logs (hundreds of millions of entries), this should only
+requires tens of gigabytes of disk space.
+
+For each new build result, builders:
 
 1. Insert the build result
 1. Construct the consistency proof
 1. Commit the new state and write the consistency proof as the commit message
 
-## Clients
+### Followers
 
-Log followers are lightweight and need store only the most recent commit object (trees / blobs are
-not required) for logs they are interested in. The number of operations required to lookup a build
-result, as well as the amount of local state required is constant as the number of build results
-increases.
+Followers query build results from logs. Log followers are lightweight and need store only the most
+recent commit object (trees / blobs are not required). This means they need only store a few hundred
+kilobytes of data for each log they are interested in.
 
-### Synchronisation
+#### Log Synchronisation
 
-Clients start from a known good commit, and pull newer commits in order from the oldest to the
+Followers start from a known good commit, and pull newer commits in order from the oldest to the
 newest. As they receive new commits, they verify the consistency proofs. Once a newer commit has
 been verified, all older commits can be discarded. This operation scales linearly in time with the
 number of commits.
 
-### Lookup
+#### Build Lookup
 
-Starting from the root, clients move down the tree to the desired leaf, fetching intermediate tree
+Starting from the root, followers move down the tree to the desired leaf, fetching intermediate tree
 objects as needed (using `git fetch-pack --filter=tree:0 <REPO> <OBJECT_HASH>`). Once they have
-fetched the full branch, they combine all hashes to verify the inclusion proof.
+fetched the full branch, they combine all hashes to verify the inclusion proof. The number of
+network requests required to lookup a build result remains constant as the number of builds
+increases.
 
 ## Testing
 
@@ -92,13 +106,55 @@ and commit them to a log.  It currently does not write the full consistency proo
 message, only the store hash and content that was added.
 
 I ran it for a few days and generated a test repository with ~3.3 million builds. This repo is
-7.6GiB on disk, and is available here: https://github.com/xwvvvvwx/untrustix-git-testdata.
+7.6GB on disk, and is available here: https://github.com/xwvvvvwx/untrustix-git-testdata.
 
-You can emulate a client by fetching using `git clone --filter=tree:0 --depth=1 --no-checkout
---no-hardlinks file://<PATH_TO_REPO> client`. This will fetch only the latest commit object. It will
-not fetch any tree or blob objects referenced in the commit. It will not checkout any data into the
-worktree. Note that this must be done on a local copy of the repo, as github currently does not
-support partial clones.
+You can emulate a lightweight follower by fetching using `git clone --filter=tree:0 --depth=1
+--no-checkout --no-hardlinks file://<PATH_TO_REPO> client`. This will fetch only the latest commit
+object. It will not fetch any tree or blob objects referenced in the commit. It will not checkout
+any data into the worktree. Note that this must be done on a local copy of the repo, as github
+currently does not support partial clones.
 
 You can then query individual build results by recursively calling `git fetch-pack --filter=tree:0
-file://<PATH_TO_REPO> <OBJECT_HASH>` inside the client repository until you reach a leaf.
+file://<PATH_TO_REPO> <OBJECT_HASH>` inside the client repository until you reach the desired leaf
+node.
+
+## Practicality
+
+### Partial Clone Support
+
+There are unfortunately no major git hosting services that currently support partial clone, although
+gitlab are currently testing an alpha implementation behind a feature flag
+([ref](https://docs.gitlab.com/ee/topics/git/partial_clone.html)). It does however work with self
+hosted repos (I have tested with the `ssh` and `git` protocols).
+
+The lightweight log follower protocol outlined in this document could be implemented using the
+github [git data api](https://developer.github.com/v3/git/), but the rate limit (5000 requests per
+hour for authenticated users) would probably become restrictive fairly quickly.
+
+Even without support for partial clone, it may be reasonable to host small logs (< 100,000 builds)
+on github. In this scenario, followers would perform shallow clones instead of partial clones,
+bringing their local state requirements up to 10s of megabytes per log.
+
+### Scalability
+
+The resource requirements imposed on builders and log followers seem reasonable, and should scale
+fairly well even with very large logs. Potential scalability issues would rather seem to be a
+concern for the log operators.
+
+Hydra has performed ~100,000,000 builds over the last 10 years, and is currently producing ~1,200,000
+builds per month. We should assume that this number will increase. It does not seems unreasonable to
+expect the largest logs to reach at least 500,000,000 entries in the next decade.
+
+My 3.3 million build test repo takes up 7.6GB on disk, extrapolating out to a 500,000,000 entry log,
+we can expect the repo to require ~1TB of disk usage.
+
+Operations on the full log are slow and expensive. Running `git gc` on my (relatively small) test
+repo already takes ~20 minutes on a modern quad core i7 laptop. Performing whole repo operations on
+very large logs may become tedious or problematic.
+
+Very popular logs (e.g. hydra) will be queried on every build by most (all?) NixOS users. It is
+currently unclear what kind of load this would place on log operators. It should be noted that if
+log followers are lightweight, each query will be composed of multiple network requests as clients
+recursively walk down the tree to the leaf. It should be possible to apply some client side caching
+logic to reduce the expense here.
+
