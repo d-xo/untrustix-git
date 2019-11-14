@@ -38,7 +38,7 @@ An example repo can be found here: https://github.com/xwvvvvwx/untrustix-git-tes
 
 The inclusion proof is the familiar merkle branch proof. Given a leaf node and the branch from the
 root to the leaf, the verifier can combine the leaf with the provided intermediate hashes and
-confirm that they produce the expected root hash. This assumes that the client has obtained
+confirm that they produce the expected root hash. This assumes that the verifier has obtained
 knowledge of the root hash through some trusted side channel.
 
 ### Consistency
@@ -98,6 +98,20 @@ objects as needed (using `git fetch-pack --filter=tree:0 <REPO> <OBJECT_HASH>`).
 fetched the full branch, they combine all hashes to verify the inclusion proof. The number of
 network requests required to lookup a build result remains constant as the number of builds
 increases.
+
+## Malicious Logs
+
+Most forms of bad behaviour can be observed by clients, and log operators cannot do any of the
+following without being detected:
+
+- Remove log entries
+- Modify existing log entries
+- Lie about the presence of a build in the log
+
+The protocol as described in this document does however allow log operators to fork the log and
+present different versions of the log to different followers. This would allow targeted attacks
+against individual users. To counter this the protocol should be extended to provide some venue
+where log followers can gossip commit hashes of logs that they follow.
 
 ## Testing
 
