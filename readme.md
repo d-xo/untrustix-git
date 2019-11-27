@@ -172,3 +172,9 @@ log followers are lightweight, each query will be composed of multiple network r
 recursively walk down the tree to the leaf. It should be possible to apply some client side caching
 logic to reduce the expense here.
 
+## Todo
+
+- builder should sign commits
+- builder should generate consistency proofs
+- write script to fetch build results
+- write log follower
