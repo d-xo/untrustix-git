@@ -18,6 +18,7 @@ from argparse import ArgumentParser
 from pathlib import Path
 from tempfile import mkdtemp
 from typing import Optional
+import re
 import subprocess
 
 import common
@@ -36,6 +37,7 @@ def run(cmd: str, cwd: Optional[Path] = None) -> str:
 
 
 def fetch_object(remote: str, repo: str, oid: str) -> None:
+    """fetch the object identified by `oid` into `repo` from `remote`"""
     run(f"git fetch-pack --filter=tree:0 {remote} {oid}", cwd=repo)
 
 
@@ -62,15 +64,17 @@ if __name__ == "__main__":
     run(f"git clone --filter=tree:0 --depth=1 --bare --no-hardlinks {args.remote} {repo}")
     print(run(f"du -sh {repo}"))
 
-    commit = run("git rev-parse HEAD", cwd=repo).strip("\n")
-    print(f"fetched commit: {commit}")
+    commit_id = run("git rev-parse HEAD", cwd=repo).strip("\n")
+    print(f"fetched commit: {commit_id}")
     print(run(f"du -sh {repo}"))
 
-    tree_root = run(f'git show --format="%T" -s {commit}', cwd=repo).strip().strip('"')
+    raw_commit = run(f"git cat-file -p {commit_id}", cwd=repo)
+    tree_root = re.match(r"^tree\s(\w{40})$", raw_commit, re.MULTILINE).groups()[0]
+    print(f"fetching tree root: {tree_root}")
     fetch_object(args.remote, repo, tree_root)
-    print(f"fetched tree root: {tree_root}")
     print(run(f"du -sh {repo}"))
 
-    shards = common.shards(args.store_hash)
-    print(f"fetching branch for {shards}")
-    print(run(f"du -sh {repo}"))
+
+    # shards = common.shards(args.store_hash)
+    # print(f"fetching branch for {shards}")
+    # print(run(f"du -sh {repo}"))
