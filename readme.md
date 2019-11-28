@@ -115,6 +115,8 @@ where log followers can gossip commit hashes of logs that they follow.
 
 ## Testing
 
+### Builders
+
 A small script `builder.py` is included in this repo that can be used to generate fake build results
 and commit them to a log.  It currently does not write the full consistency proof to the commit
 message, only the store hash and content that was added.
@@ -122,15 +124,17 @@ message, only the store hash and content that was added.
 I ran it for a few days and generated a test repository with ~3.3 million builds. This repo is
 7.6GB on disk, and is available here: https://github.com/xwvvvvwx/untrustix-git-testdata.
 
-You can emulate a lightweight follower by fetching using `git clone --filter=tree:0 --depth=1
---no-checkout --no-hardlinks file://<PATH_TO_REPO> client`. This will fetch only the latest commit
-object. It will not fetch any tree or blob objects referenced in the commit. It will not checkout
-any data into the worktree. Note that this must be done on a local copy of the repo, as github
-currently does not support partial clones.
+### Followers
 
-You can then query individual build results by recursively calling `git fetch-pack --filter=tree:0
-file://<PATH_TO_REPO> <OBJECT_HASH>` inside the client repository until you reach the desired leaf
-node.
+A small script `fetcher.py` is included in this repo that can fetch build results from an
+untrustix-git repo using the lightweight follower protocol. It does not currently verify the
+consistency proofs, and simply trusts that the commit pointed to by `master` is a good one.
+
+You can run `./fetcher.py --repo <REPO_PATH> <STORE_HASH>` to fetch the build result for
+`<STORE_HASH>` from the repo at `<REPO>`.
+
+A small test repo (~100,000 builds) is available here: `<URL>`, you must clone it locally to be able
+to use it with `fetcher.py`.
 
 ## Practicality
 
