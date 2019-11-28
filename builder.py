@@ -13,6 +13,8 @@ from uuid import uuid4 as uuid
 
 import pygit2 as git  # type: ignore
 
+import common
+
 # --- test data ---
 
 
@@ -76,23 +78,6 @@ def create_repo() -> git.Repository:
 # --- repo utils ---
 
 
-def shards(path: str, depth: int) -> List[str]:
-    """
-    returns the list of directories that a given store path will be written to
-
-    >>> shards("xajasisp7xdgy1fvxhm3rbia7wxazaf9", depth=5)
-    ['xa', 'ja', 'si', 'sp', '7x', 'dgy1fvxhm3rbia7wxazaf9']
-
-    >>> shards("xajasisp7xdgy1fvxhm3rbia7wxazaf9", depth=3)
-    ['xa', 'ja', 'si', 'sp7xdgy1fvxhm3rbia7wxazaf9']
-    """
-    shards = []
-    for i in range(0, depth):
-        shards.append(path[2 * i : 2 * i + 2])
-    shards.append(path[2 * depth :])
-    return shards
-
-
 def update_tree(
     repo: git.Repository, tree: git.Oid, path: List[str], content: str
 ) -> git.Oid:
@@ -104,7 +89,7 @@ def update_tree(
     >>> for i in range(10):
     ...    path = store_hash(f"{i}")
     ...    content = nar_hash(path)
-    ...    tree = update_tree(repo, tree, shards(path, depth=5), content)
+    ...    tree = update_tree(repo, tree, common.shards(path, depth=5), content)
     >>> print(tree)
     00f68bdb866b654d4ce3da90609b74137605bd90
     """
@@ -201,7 +186,7 @@ if __name__ == "__main__":
         path = store_hash(f"{when}")
         content = nar_hash(path)
         tree = update_tree(
-            repo, repo.get(commit).tree.id, shards(path, args.sharding_depth), content
+            repo, repo.get(commit).tree.id, common.shards(path, args.sharding_depth), content
         )
         commit = advance_master(
             repo=repo, parents=[commit], tree=tree, when=when, msg=f"{path} {content}"

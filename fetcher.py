@@ -20,6 +20,8 @@ from tempfile import mkdtemp
 from typing import Optional
 import subprocess
 
+import common
+
 
 def run(cmd: str, cwd: Optional[Path] = None) -> str:
     """run `cmd` and return the output, print stderr and bail if it fails"""
@@ -62,7 +64,11 @@ if __name__ == "__main__":
 
     dest = mkdtemp()
 
-    print(f"fetching most recent commit in {args.repo} to {dest}")
+    print(f"initializing light client for {args.repo} in {dest}")
     run(f"git clone --filter=tree:0 --depth=1 --bare --no-hardlinks {args.repo} {dest}")
-    commit = run("git rev-parse HEAD", cwd=Path(dest))
-    print(commit)
+
+    commit = run("git rev-parse HEAD", cwd=Path(dest)).strip("\n")
+    print(f"fetched commit: {commit}")
+
+    shards = common.shards(args.store_hash)
+    print(f"fetching tree branch for {shards}")
