@@ -38,7 +38,6 @@ def run(cmd: str, cwd: Optional[Path] = None) -> str:
 
 def fetch_object(remote: str, repo: Path, oid: str) -> None:
     run(f"git fetch-pack --filter=tree:0 {remote} {oid}", cwd=repo)
-    run(f"git cat-file -p {oid}")
 
 
 def get_tree_id(repo: Path, commit_id: str) -> str:
@@ -50,7 +49,7 @@ if __name__ == "__main__":
         description="Fetch a build result from an untrustix-git repo using the lightweight protocol"
     )
     parser.add_argument(
-        "--repo",
+        "--remote",
         type=str,
         required=True,
         help="The repo containing the build log, can be any repo url supported by git",
@@ -62,13 +61,21 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    dest = mkdtemp()
+    repo = Path(mkdtemp())
 
-    print(f"initializing light client for {args.repo} in {dest}")
-    run(f"git clone --filter=tree:0 --depth=1 --bare --no-hardlinks {args.repo} {dest}")
+    print(f"initializing light client for {args.remote} in {repo}")
+    run(f"git clone --filter=tree:0 --depth=1 --bare --no-hardlinks {args.remote} {repo}")
+    print(run(f"du -sh {repo}"))
 
-    commit = run("git rev-parse HEAD", cwd=Path(dest)).strip("\n")
+    commit = run("git rev-parse HEAD", cwd=repo).strip("\n")
     print(f"fetched commit: {commit}")
+    print(run(f"du -sh {repo}"))
+
+    tree_root = run(f'git show --format="%T" -s {commit}', cwd=repo).strip().strip('"')
+    fetch_object(args.remote, repo, tree_root)
+    print(f"fetched tree root: {tree_root}")
+    print(run(f"du -sh {repo}"))
 
     shards = common.shards(args.store_hash)
-    print(f"fetching tree branch for {shards}")
+    print(f"fetching branch for {shards}")
+    print(run(f"du -sh {repo}"))
