@@ -16,6 +16,9 @@ def shards(path: str, depth: int = None) -> List[str]:
     if depth is None:
         depth = 2
 
+    if len(path) != 32:
+        raise Exception("invalid store path")
+
     shards = []
     for i in range(0, depth):
         shards.append(path[2 * i : 2 * i + 2])
