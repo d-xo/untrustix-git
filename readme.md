@@ -182,3 +182,4 @@ logic to reduce the expense here.
 - builder should generate consistency proofs
 - write script to fetch build results
 - write log follower
+- multiple nar hashes per store hash?
