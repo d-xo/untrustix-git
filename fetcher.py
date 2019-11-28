@@ -22,7 +22,6 @@ import subprocess
 
 import common
 
-
 def run(cmd: str, cwd: Optional[Path] = None) -> str:
     """run `cmd` and return the output, print stderr and bail if it fails"""
     try:
@@ -36,12 +35,8 @@ def run(cmd: str, cwd: Optional[Path] = None) -> str:
         exit(1)
 
 
-def fetch_object(remote: str, repo: Path, oid: str) -> None:
+def fetch_object(remote: str, repo: str, oid: str) -> None:
     run(f"git fetch-pack --filter=tree:0 {remote} {oid}", cwd=repo)
-
-
-def get_tree_id(repo: Path, commit_id: str) -> str:
-    return "hi"
 
 
 if __name__ == "__main__":
@@ -61,7 +56,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    repo = Path(mkdtemp())
+    repo = mkdtemp()
 
     print(f"initializing light client for {args.remote} in {repo}")
     run(f"git clone --filter=tree:0 --depth=1 --bare --no-hardlinks {args.remote} {repo}")
