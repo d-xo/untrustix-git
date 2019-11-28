@@ -186,7 +186,10 @@ if __name__ == "__main__":
         path = store_hash(f"{when}")
         content = nar_hash(path)
         tree = update_tree(
-            repo, repo.get(commit).tree.id, common.shards(path, args.sharding_depth), content
+            repo,
+            repo.get(commit).tree.id,
+            common.shards(path, args.sharding_depth),
+            content,
         )
         commit = advance_master(
             repo=repo, parents=[commit], tree=tree, when=when, msg=f"{path} {content}"

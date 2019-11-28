@@ -1,19 +1,5 @@
 #! /usr/bin/env python3
 
-"""
-You can emulate a lightweight follower by fetching using `git clone --filter=tree:0 --depth=1
---no-checkout --no-hardlinks file://<PATH_TO_REPO> client`. This will fetch only the latest commit
-object. It will not fetch any tree or blob objects referenced in the commit. It will not checkout
-any data into the worktree. Note that this must be done on a local copy of the repo, as github
-currently does not support partial clones.
-
-You can then query individual build results by recursively calling `git fetch-pack --filter=tree:0
-file://<PATH_TO_REPO> <OBJECT_HASH>` inside the client repository until you reach the desired leaf
-node.
-
-./fetcher.py --repo <REPO_PATH> <STORE_HASH>
-"""
-
 from argparse import ArgumentParser
 from pathlib import Path
 from tempfile import mkdtemp
@@ -60,21 +46,45 @@ if __name__ == "__main__":
 
     repo = mkdtemp()
 
-    print(f"initializing light client for {args.remote} in {repo}")
     run(f"git clone --filter=tree:0 --depth=1 --bare --no-hardlinks {args.remote} {repo}")
-    print(run(f"du -sh {repo}"))
-
     commit_id = run("git rev-parse HEAD", cwd=repo).strip("\n")
-    print(f"fetched commit: {commit_id}")
-    print(run(f"du -sh {repo}"))
+    repo_size=run(f"du -sh {repo}").split()[0]
+    print()
+    print(f"initialized light client for {args.remote} in {repo}")
+    print(f"current commit: {commit_id}")
+    print(f"repo size: {repo_size}")
+    print()
+
+    # --- tree root ---
 
     raw_commit = run(f"git cat-file -p {commit_id}", cwd=repo)
-    tree_root = re.match(r"^tree\s(\w{40})$", raw_commit, re.MULTILINE).groups()[0]
+    tree_root = re.search(r"^tree\s(\w{40})$", raw_commit, re.MULTILINE).groups()[0]
     print(f"fetching tree root: {tree_root}")
     fetch_object(args.remote, repo, tree_root)
-    print(run(f"du -sh {repo}"))
 
+    shards = common.shards(args.store_hash)
 
-    # shards = common.shards(args.store_hash)
-    # print(f"fetching branch for {shards}")
-    # print(run(f"du -sh {repo}"))
+    # --- branch ---
+
+    raw_tree = run(f"git cat-file -p {tree_root}", cwd=repo)
+    subtree = re.search(r"^040000\stree\s(\w{40})\s" + shards[0] + "$", raw_tree, re.MULTILINE).groups()[0]
+    print(f"fetching subtree for {shards[0]}: {subtree}")
+    fetch_object(args.remote, repo, subtree)
+
+    raw_tree = run(f"git cat-file -p {subtree}", cwd=repo)
+    subtree = re.search(r"^040000\stree\s(\w{40})\s" + shards[1] + "$", raw_tree, re.MULTILINE).groups()[0]
+    print(f"fetching subtree for {shards[1]}: {subtree}")
+    fetch_object(args.remote, repo, subtree)
+
+    raw_tree = run(f"git cat-file -p {subtree}", cwd=repo)
+    blob = re.search(r"^100644\sblob\s(\w{40})\s" + shards[2] + "$", raw_tree, re.MULTILINE).groups()[0]
+    print(f"fetching blob for {shards[2]}: {blob}")
+    fetch_object(args.remote, repo, blob)
+
+    # --- output result ---
+
+    content = run(f"git cat-file -p {blob}", cwd=repo)
+    repo_size=run(f"du -sh {repo}").split()[0]
+    print()
+    print(f"expected nar hash for {args.store_hash} is: {content}")
+    print(f"repo size: {repo_size}")

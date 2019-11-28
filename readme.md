@@ -130,11 +130,18 @@ A small script `fetcher.py` is included in this repo that can fetch build result
 untrustix-git repo using the lightweight follower protocol. It does not currently verify the
 consistency proofs, and simply trusts that the commit pointed to by `master` is a good one.
 
-You can run `./fetcher.py --repo <REPO_PATH> <STORE_HASH>` to fetch the build result for
+You can run `./fetcher.py --remote <REPO_PATH> <STORE_HASH>` to fetch the build result for
 `<STORE_HASH>` from the repo at `<REPO>`.
 
-A small test repo (~100,000 builds) is available here: `<URL>`, you must clone it locally to be able
-to use it with `fetcher.py`.
+A small test repo (~100,000 builds) is available at:
+[https://github.com/xwvvvvwx/untrustix-git-testdatata-small.git](https://github.com/xwvvvvwx/untrustix-git-testdatata-small.git),
+you must clone it locally to be able to use it with `fetcher.py`. Note that in the example below
+`<PATH>` must be an *absolute* path.
+
+```
+git clone https://github.com/xwvvvvwx/untrustix-git-testdatata-small.git <PATH>
+./fetcher.py --remote=file://<PATH> <STORE_HASH>
+```
 
 ## Practicality
 
@@ -180,6 +187,5 @@ logic to reduce the expense here.
 
 - builder should sign commits
 - builder should generate consistency proofs
-- write script to fetch build results
-- write log follower
+- log follower should validate consistency proofs
 - multiple nar hashes per store hash?

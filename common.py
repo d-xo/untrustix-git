@@ -1,5 +1,6 @@
 from typing import List
 
+
 def shards(path: str, depth: int = None) -> List[str]:
     """
     returns the list of directories that a given store path will be written to
