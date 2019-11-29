@@ -133,7 +133,7 @@ consistency proofs, and simply trusts that the commit pointed to by `master` is 
 You can run `./fetcher.py --remote <REPO_PATH> <STORE_HASH>` to fetch the build result for
 `<STORE_HASH>` from the repo at `<REPO>`.
 
-A small test repo (~100,000 builds) is available at:
+A small test repo (~10,000 builds) is available at:
 [https://github.com/xwvvvvwx/untrustix-git-testdatata-small.git](https://github.com/xwvvvvwx/untrustix-git-testdatata-small.git),
 you must clone it locally to be able to use it with `fetcher.py`. Note that in the example below
 `<PATH>` must be an *absolute* path.
